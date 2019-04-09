@@ -24,10 +24,12 @@ class ServerError(Exception):
     def __init__(self):
         super().__init__("CEX.io server error")
 
+
 class RemoteExecutionError(Exception):
     def __init__(self, cause):
         super().__init__("API call error -> " + cause)
         self.cause = cause
+
 
 class CEXExchange:
     def __init__(self, username: str, api_key: str, api_secret: str):
@@ -102,13 +104,13 @@ class CEXExchange:
             raise RemoteExecutionError(response.error)
         return cast(CEXOrderInfo, response.data)
 
-    def getBalance(self, coin: str) -> float:
+    def get_balance(self, coin: str) -> float:
         response = self.api_call("balance")
         if response.status_code != 200:
             return -1
         return response.json()[coin.upper()]
 
-    def get_ticker(self, pair) -> CEXTicker:
+    def get_ticker(self, pair: str) -> CEXTicker:
         response = self.api_call(CEXTicker, "ticker", None, pair)
         if response.error or response.ok != "ok":
             raise RemoteExecutionError(response.error)

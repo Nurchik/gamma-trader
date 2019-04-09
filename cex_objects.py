@@ -1,6 +1,7 @@
 from typing import Dict, Any, Type, Optional
 from enum import Enum
 
+
 class CEXApiData:
     def __init__(self, json_obj: Dict[str, Any]):
         self.json_obj = json_obj

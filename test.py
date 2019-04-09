@@ -2,12 +2,44 @@ import unittest
 import main
 import exchange
 from typing import List
+from pymongo import MongoClient
+from pymongo.collection import Collection
+from pymongo.database import Database
+from pymongo.cursor import Cursor
+from cex_objects import CEXTicker
+from datetime import datetime
 
 
 class CEXStub(exchange.CEXExchange):
-    def __init__(self, price_list: List[float]):
-        self.price_list = price_list
-        self.current_index = 0
+    def __init__(self, *args, from_date: datetime, to_date: datetime):
+        super().__init__(*args)
+        self.client: MongoClient = MongoClient("localhost", username="root", password="Admin@2019", authSource="admin")
+        self.db: Database = self.client["cex"]
+        self.collection: Collection = self.db["eth_usd"]
+        self.from_date = from_date
+        self.to_date = to_date
+        self.counter: int = 0
+        self.tickers = self.get_tickers()
+
+    def count_docs(self):
+
+
+    def get_tickers(self) -> Cursor:
+        query = {
+            "$and": [
+                {
+                    "timestamp": {
+                        "$gte": int(self.from_date.timestamp())
+                    }
+                },
+                {
+                    "timestamp": {
+                        "$lte": int(self.to_date.timestamp())
+                    }
+                }
+            ]
+        }
+        return self.collection.find(query)
 
     def getLatestBid(self, pair: str) -> float:
         self.current_index += 1
