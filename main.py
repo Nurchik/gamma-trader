@@ -67,16 +67,4 @@ def sellPair(pair, amount, threshold_percent, max_order_ttl):
 
 
 if __name__ == "__main__":
-    global current_order
-    try:
-        while True:
-            res = sellPair(args["pair"], args["amount"], args["threshold_percent"], args["order_ttl"])
-            if res:
-                break
-            time.sleep(3)
-        print("work's done")
-    except KeyboardInterrupt:
-        print('interrupted!')
-        if current_order:
-            cex.cancelOrder(current_order)
-        print("done")
+    pass

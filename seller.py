@@ -28,26 +28,32 @@ class TradingDirective(NamedTuple):
 
 
 class Seller:
-    def __init__(self, exchange: CEXExchange, action: str, pair: str, amount: float, threshold_percent: float, order_ttl: int = 10):
+    def __init__(self, exchange: CEXExchange, action: str, pair: str, amount: float, threshold_percent: float,
+                 order_ttl: int = 10, significant_digits: int = 3):
         self.exchange = exchange
         self.pair = pair
         self.src_curr = pair.split("/")[0]
         self.dst_curr = pair.split("/")[1]
         self.amount = amount
-        self.threshold_percent = threshold_percent
+        self.threshold_percent = threshold_percent / 100
         self.max_bid: float = -1
-        self.max_ask: float = -1
+        self.min_ask: float = -1
         self.current_order: Optional[str] = None
         self.max_order_ttl = order_ttl
         self.order_ttl: int = 0
         self.action = action
         self.logger = logging.getLogger("4Trader")
         self.trade_ignited: bool = False
+        self.significant_digits = significant_digits
 
     def process_ticker(self, ticker: CEXTicker) -> ChangeLevels:
         self.max_bid = max(self.max_bid, ticker.bid)
-        self.max_ask = max(self.max_ask, ticker.ask)
-        changes = ChangeLevels(ask_change=ticker.ask/self.max_ask, bid_change=ticker.bid/self.max_bid)
+        if self.min_ask == -1:
+            self.min_ask = ticker.ask
+        else:
+            self.min_ask = min(self.min_ask, ticker.ask)
+        changes = ChangeLevels(ask_change=round(ticker.ask/self.min_ask, self.significant_digits),
+                               bid_change=round(ticker.bid/self.max_bid, self.significant_digits))
         return changes
 
     def process_changes(self, changes: ChangeLevels, ticker: CEXTicker) -> TradingDirective:

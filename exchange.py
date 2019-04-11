@@ -46,7 +46,7 @@ class CEXExchange:
                              digestmod=hashlib.sha256).hexdigest().upper()
         return signature
 
-    def api_call(self, data_type: Optional[Type[CEXApiData]], command: str, param: Dict[Any] = None, action='') -> CEXApiResponse:
+    def api_call(self, data_type: Optional[Type[CEXApiData]], command: str, param: Dict[str, Any] = None, action='') -> CEXApiResponse:
         if param is None:
             param = {}
 
@@ -65,7 +65,7 @@ class CEXExchange:
         response = CEXApiResponse(result.json(), data_type)
         return response
 
-    def __post(self, url: str, param: Dict[Any]) -> requests.Response:
+    def __post(self, url: str, param: Dict[str, Any]) -> requests.Response:
         result = requests.post(url, data=param, headers={'User-agent': 'bot-cex.io-' + self.username}).json()
         return result
 
