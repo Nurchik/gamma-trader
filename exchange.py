@@ -1,5 +1,5 @@
 import requests
-import json
+import logging
 import hmac
 import hashlib
 import time
@@ -36,6 +36,7 @@ class CEXExchange:
         self.api_key = api_key
         self.username = username
         self.api_secret = api_secret
+        self.logger = logging.getLogger("gamma.CEXExchange")
 
     def __nonce(self) -> str:
         return str(int(time.time() * 1000))
@@ -47,8 +48,11 @@ class CEXExchange:
         return signature
 
     def api_call(self, data_type: Optional[Type[CEXApiData]], command: str, param: Dict[str, Any] = None, action='') -> CEXApiResponse:
+        request_url = (BASE_URL % command) + action
         if param is None:
             param = {}
+
+        self.logger.debug(f"request_url = {request_url}, params = {param}")
 
         if command not in PUBLIC_COMMANDS:
             nonce = self.__nonce()
@@ -58,11 +62,12 @@ class CEXExchange:
                 'nonce': nonce
             })
 
-        request_url = (BASE_URL % command) + action
         result = self.__post(request_url, param)
+        self.logger.debug(f"result = {result}")
         if result.status_code != 200:
             raise ServerError()
         response = CEXApiResponse(result.json(), data_type)
+        self.logger.debug(f"response = {response}")
         return response
 
     def __post(self, url: str, param: Dict[str, Any]) -> requests.Response:

@@ -6,7 +6,7 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 from cex_objects import CEXTicker, CEXOrderInfo, CEXPlacedOrderInfo
 from datetime import datetime
-from seller import Seller, ChangeLevels, TradingDirective, OrderDone, OrderExpired, PartiallyExecutedOrder
+from trader import Trader, ChangeLevels, TradingDirective, OrderDone, OrderExpired, PartiallyExecutedOrder
 import traceback
 
 
@@ -133,7 +133,7 @@ class TickerProcessingTest(unittest.TestCase):
     def setUp(self) -> None:
         self.exchange = CEXStub("test", "test", "test",from_date=datetime.fromisoformat("2019-04-08T10:33:04"),
                                 to_date=datetime.fromisoformat("2019-04-08T10:34:04"))
-        self.seller = Seller(self.exchange, "sell", "ETH/USD", 1000.00, 10.00)
+        self.seller = Trader(self.exchange, "sell", "ETH/USD", 1000.00, 10.00)
 
     def test_process_ticker(self) -> None:
         asks: List[float] = []
@@ -178,7 +178,7 @@ class ChangeProcessingTest(unittest.TestCase):
                                                   (185.67, 183.56), (201.835, 211.62), (170.45, 175.76),
                                                   (188.45, 234.56), (225.45, 234.56)]
         self.exchange = CEXStub2("test", "test", "test", tickers_raw=self.tickers_raw)
-        self.seller = Seller(self.exchange, "sell", "ETH/USD", 1000.00, 10.00)
+        self.seller = Trader(self.exchange, "sell", "ETH/USD", 1000.00, 10.00)
 
     def test_process_changes_buy(self) -> None:
         self.seller.action = "buy"
@@ -221,7 +221,7 @@ class ChangeProcessingTest(unittest.TestCase):
 class OrderControllingTest(unittest.TestCase):
     def setUp(self) -> None:
         self.exchange = CEXStub3("test", "test", "test")
-        self.seller = Seller(self.exchange, "sell", "ETH/USD", 1000.00, 10.00)
+        self.seller = Trader(self.exchange, "sell", "ETH/USD", 1000.00, 10.00)
 
     def test_instant_order(self):
         order_id: str = "0000001"
@@ -306,7 +306,7 @@ class ProcessingTest(unittest.TestCase):
             (183.57, 182.61), (183.57, 186.61), (183.57, 193.0), (183.57, 172.69), (183.57, 182.61), (183.57, 150.78),
             (183.57, 151.78), (183.57, 152.78), (183.57, 153.78), (183.57, 154.78)
         ])
-        self.seller = Seller(self.exchange, "sell", "ETH/USD", 1578.15, 10.00, 3)
+        self.seller = Trader(self.exchange, "sell", "ETH/USD", 1578.15, 10.00, 3)
 
     def test_processing_done(self):
         self.assertFalse(self.seller.trade_ignited)

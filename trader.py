@@ -32,7 +32,7 @@ class TradingDirective(NamedTuple):
     pair: str = ""
 
 
-class Seller:
+class Trader:
     def __init__(self, exchange: CEXExchange, action: str, pair: str, amount: float, threshold_percent: float,
                  order_ttl: int = 10, significant_digits: int = 3):
         self.exchange = exchange
@@ -50,6 +50,7 @@ class Seller:
         self.logger = logging.getLogger("4Trader")
         self.trade_ignited: bool = False
         self.significant_digits = significant_digits
+        self.logger = logging.getLogger("gamma.trader")
 
     def process_ticker(self, ticker: CEXTicker) -> ChangeLevels:
         self.max_bid = max(self.max_bid, ticker.bid)
@@ -59,18 +60,20 @@ class Seller:
             self.min_ask = min(self.min_ask, ticker.ask)
         changes = ChangeLevels(ask_change=round(ticker.ask/self.min_ask, self.significant_digits),
                                bid_change=round(ticker.bid/self.max_bid, self.significant_digits))
+        self.logger.debug(f"ticker={ticker}, max_bid = {self.max_bid}, min_ask = {self.min_ask}")
+        self.logger.info("Ticker processed")
         return changes
 
     def process_changes(self, changes: ChangeLevels, ticker: CEXTicker) -> TradingDirective:
         if self.action == "buy":
-            self.logger.debug(f"Asset's sell price changed by {changes.ask_change}%")
+            self.logger.debug(f"Asset's sell price changed by {changes.ask_change * 100}%")
             if (changes.ask_change > 1) and (round(changes.ask_change - 1, self.significant_digits) > self.threshold_percent):
-                self.logger.debug(f"Threshold of {self.threshold_percent}% reached. Start buying...")
+                self.logger.info(f"Threshold of {self.threshold_percent * 100}% reached. Start buying...")
                 return TradingDirective(self.action, self.amount, ticker.ask, self.pair)
         else:
-            self.logger.debug(f"Asset's buy price changed by {changes.bid_change}%")
+            self.logger.debug(f"Asset's buy price changed by {changes.bid_change * 100}%")
             if (changes.bid_change < 1) and (round(1 - changes.bid_change, self.significant_digits) > self.threshold_percent):
-                self.logger.debug(f"Threshold of {self.threshold_percent}% reached. Start selling...")
+                self.logger.info(f"Threshold of {self.threshold_percent * 100}% reached. Start selling...")
                 return TradingDirective(self.action, self.amount, ticker.bid, self.pair)
         return TradingDirective("hold")
 
@@ -79,21 +82,27 @@ class Seller:
             price = ticker.ask
         else:
             price = ticker.bid
+        self.logger.info(f"Generated straight directive")
         return TradingDirective(self.action, self.amount, price, self.pair)
 
     def control_order(self) -> None:
         order_info = self.exchange.get_order_info(self.current_order)
         order_status = order_info.status
+        self.logger.debug(f"Controlling order {self.current_order}. Status - {order_status}")
         if order_status == OrderStatus.ACTIVE:
+            self.logger.debug(f"Order: {self.current_order} is still being processed.")
             self.order_ttl += 1
             if self.order_ttl < self.max_order_ttl:
                 return
+            self.logger.info(f"Order: {self.current_order} reached ttl limit - {self.max_order_ttl}")
             self.exchange.cancel_order(self.current_order)
             raise OrderExpired()
         elif order_status == OrderStatus.DONE:
+            self.logger.info(f"Order: {self.current_order} is done!")
             raise OrderDone()
         else:
             remains = order_info.remains
+            self.logger.info(f"Order: {self.current_order} is cancelled. Remains: {remains}")
 
         if remains == 0:
             raise OrderDone()
@@ -103,8 +112,10 @@ class Seller:
             raise Exception(f"Unexpected negative valued remaining -> {remains}. Order: {self.current_order}")
 
     def trade_asset(self, trading_directive: TradingDirective) -> None:
+        self.logger.debug(f"trading_directive={trading_directive}")
         self.current_order = self.exchange.place_order(trading_directive.action, trading_directive.pair,
                                                        trading_directive.price, trading_directive.amount).id
+        self.logger.info(f'Order of type "{trading_directive.action}" created. ID - {self.current_order}')
         self.order_ttl = 0
 
     def process(self) -> None:
@@ -127,6 +138,7 @@ class Seller:
             trading_directive = self.process_changes(changes, ticker)
 
         if trading_directive.action != "hold":
+            self.logger.info("Trade ignited!")
             self.trade_ignited = True
             self.trade_asset(trading_directive)
 

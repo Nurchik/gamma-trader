@@ -27,6 +27,9 @@ class CEXPlacedOrderInfo(CEXApiData):
         self.id = self.json_obj["id"]
         self.time = self.json_obj["time"]
 
+    def __str__(self):
+        return f"id = {self.id}, time = {self.time}"
+
 
 class CEXOrderInfo(CEXApiData):
     def __init__(self, *args):
@@ -70,6 +73,11 @@ class CEXOrderInfo(CEXApiData):
         else:
             raise Exception(f"Unknown order status \"{status}\". Order ID: {self.orderId}")
 
+    def __str__(self):
+        return f"id = {self.id}, time = {self.time}, type = {self.type}, user = {self.user}, price = {self.price}, " \
+            f"amount = {self.amount}, symbol1 = {self.symbol1}, symbol2 = {self.symbol2}, " \
+            f"lastTxTime = {self.lastTxTime}, lastTx = {self.lastTx}, remains = {self.remains}, status = {self.status}"
+
 
 class CEXTicker(CEXApiData):
     def __init__(self, *args):
@@ -99,6 +107,12 @@ class CEXTicker(CEXApiData):
         self.priceChangePercentage = float(self.json_obj["priceChangePercentage"])
         self.pair = self.json_obj["pair"]
 
+    def __str__(self):
+        return f"bid = {self.bid}, ask = {self.ask}, low = {self.low}, high = {self.high}, last = {self.last}, " \
+            f"volume = {self.volume}, volume30d = {self.volume30d}, timestamp = {self.timestamp}, " \
+            f"priceChange = {self.priceChange}, priceChangePercentage = {self.priceChangePercentage}, " \
+            f"pair = {self.pair}"
+
 
 class CEXApiResponse(CEXApiData):
     def __init__(self, json_obj: Any, data_type: Optional[Type[CEXApiData]]):
@@ -123,3 +137,6 @@ class CEXApiResponse(CEXApiData):
                     self.data = self.data_type(self.json_obj)
             else:
                 self.data = self.data_type(self.json_obj.get("data"))
+
+    def __str__(self):
+        return f"ok = {self.ok}, e = {self.e}, error = {self.error}, data = {self.data}"
