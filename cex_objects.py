@@ -12,16 +12,16 @@ class CEXApiData:
 
 
 class OrderStatus(Enum):
-    DONE: 1
-    CANCELLED: 2
-    ACTIVE: 3
+    DONE = 1
+    CANCELLED = 2
+    ACTIVE = 3
 
 
 class CEXPlacedOrderInfo(CEXApiData):
     def __init__(self, *args):
         self.id: str = ""
         self.time: str = ""
-        super.__init__(*args)
+        super().__init__(*args)
 
     def init(self) -> None:
         self.id = self.json_obj["id"]
@@ -34,7 +34,7 @@ class CEXOrderInfo(CEXApiData):
         self.time: str = ""
         self.type: str = ""
         self.user: str = ""
-        self.status: OrderStatus = OrderStatus.NOT_SET
+        self.status: Optional[OrderStatus] = None
         self.price: float = -1
         self.amount: float = -1
         self.symbol1: str = ""
@@ -43,7 +43,7 @@ class CEXOrderInfo(CEXApiData):
         self.lastTx: str = ""
         self.remains: float = -1
         self.orderId: str = ""
-        super.__init__(*args)
+        super().__init__(*args)
 
     def init(self) -> None:
         self.id = self.json_obj["id"]

@@ -1,12 +1,13 @@
 import unittest
 import exchange
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any, Optional, cast
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
-from cex_objects import CEXTicker
+from cex_objects import CEXTicker, CEXOrderInfo, CEXPlacedOrderInfo
 from datetime import datetime
-from seller import Seller, ChangeLevels, TradingDirective
+from seller import Seller, ChangeLevels, TradingDirective, OrderDone, OrderExpired, PartiallyExecutedOrder
+import traceback
 
 
 class CEXStub(exchange.CEXExchange):
@@ -78,6 +79,54 @@ class CEXStub2(exchange.CEXExchange):
     def get_ticker(self, pair: str) -> CEXTicker:
         self.counter += 1
         return self.tickers[self.counter]
+
+
+class CEXStub3(CEXStub2):
+    def __init__(self, *args, tickers_raw=[]):
+        super().__init__(*args, tickers_raw=tickers_raw)
+        self.orders: Dict[str, Any] = {}
+        self.order_data_template: Dict[str, Any] = {
+            "time": 19995568,
+            "type": "buy",
+            "user": "user001",
+            "price": 150.67,
+            "amount": 1000.0,
+            "symbol1": "ETH",
+            "symbol2": "USD",
+            "lastTxTime": "202030333",
+            "lastTx": "345346346",
+            "remains": 1000.0,
+            "status": "a"
+        }
+        self.order_counter: int = 0
+
+    def set_order(self, order_id: str, order_data: Dict[str, Any]) -> None:
+        self.orders[order_id] = {**self.order_data_template, **order_data}
+
+    def get_order(self, order_id: str) -> Dict[str, Any]:
+        return self.orders.get(order_id)
+
+    def get_order_info(self, order_id: str) -> CEXOrderInfo:
+        order_data: Dict[str, Any] = self.orders.get(order_id)
+        return CEXOrderInfo(order_data)
+
+    def cancel_order(self, order_id: str) -> None:
+        order_data = {**self.get_order(order_id), **{"status": "c"}}
+        self.set_order(order_id, order_data)
+
+    def place_order(self, order_type: str, pair: str, price: float, amount: float) -> CEXPlacedOrderInfo:
+        order_id: str = f"1000{self.order_counter}"
+        time: int = int(datetime.now().timestamp())
+        self.order_counter += 1
+        self.set_order(order_id, {
+            "id": order_id,
+            "time": time,
+            "type": order_type,
+            "price": price,
+            "amount": amount,
+            "remains": amount
+        })
+        return CEXPlacedOrderInfo({"id": order_id, "time": time})
 
 
 class TickerProcessingTest(unittest.TestCase):
@@ -171,4 +220,211 @@ class ChangeProcessingTest(unittest.TestCase):
 
 class OrderControllingTest(unittest.TestCase):
     def setUp(self) -> None:
-        pass
+        self.exchange = CEXStub3("test", "test", "test")
+        self.seller = Seller(self.exchange, "sell", "ETH/USD", 1000.00, 10.00)
+
+    def test_instant_order(self):
+        order_id: str = "0000001"
+        self.seller.current_order = order_id
+        self.exchange.set_order(order_id, {"id": order_id, "status": "d"})
+        exc: Optional[Exception] = None
+        try:
+            self.seller.control_order()
+        except OrderDone as err:
+            exc = err
+        self.assertIsInstance(exc, OrderDone)
+
+    def test_order(self):
+        order_id: str = "0000001"
+        self.seller.current_order = order_id
+        self.exchange.set_order(order_id, {"id":order_id, "status": "a"})
+        self.seller.order_ttl = 0
+        for i in range(1, 6):
+            self.seller.control_order()
+            self.assertEqual(self.seller.order_ttl, i)
+        self.exchange.set_order(order_id, {"id": order_id, "status": "d"})
+        exc: Optional[Exception] = None
+        try:
+            self.seller.control_order()
+        except OrderDone as err:
+            exc = err
+        self.assertIsInstance(exc, OrderDone)
+        self.assertEqual(self.seller.order_ttl, 5)
+
+    def test_expired_order(self):
+        order_id: str = "0000001"
+        self.seller.current_order = order_id
+        self.exchange.set_order(order_id, {"id": order_id, "status": "a", "remains": 550.75})
+        self.seller.order_ttl = 0
+        exc: Optional[Exception] = None
+        for i in range(1, 11):
+            try:
+                self.seller.control_order()
+            except Exception as err:
+                exc = err
+            if i < 10:
+                self.assertEqual(self.seller.order_ttl, i)
+                self.assertIsNone(exc)
+            else:
+                self.assertIsInstance(exc, OrderExpired)
+                self.assertEqual(self.seller.order_ttl, 10)
+        self.assertEqual(self.exchange.get_order(order_id).get("status"), "c")
+
+    def test_partial_order(self):
+        order_id: str = "0000001"
+        self.seller.current_order = order_id
+        self.exchange.set_order(order_id, {"id": order_id, "status": "c", "remains": 0.0})
+        self.seller.order_ttl = 0
+        exc: Optional[Exception] = None
+
+        try:
+            self.seller.control_order()
+        except Exception as err:
+            exc = err
+        self.assertIsInstance(exc, OrderDone)
+
+        self.exchange.set_order(order_id, {"id": order_id, "status": "c", "remains": 15.65})
+        try:
+            self.seller.control_order()
+        except Exception as err:
+            exc = err
+        self.assertIsInstance(exc, PartiallyExecutedOrder)
+        self.assertEqual(exc.remains, 15.65)
+
+        self.exchange.set_order(order_id, {"id": order_id, "status": "cd", "remains": 7535.89})
+        try:
+            self.seller.control_order()
+        except Exception as err:
+            exc = err
+        self.assertIsInstance(exc, PartiallyExecutedOrder)
+        self.assertEqual(exc.remains, 7535.89)
+
+
+class ProcessingTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.exchange = CEXStub3("test", "test", "test", tickers_raw=[
+            (183.57, 182.61), (183.57, 186.61), (183.57, 193.0), (183.57, 172.69), (183.57, 182.61), (183.57, 150.78),
+            (183.57, 151.78), (183.57, 152.78), (183.57, 153.78), (183.57, 154.78)
+        ])
+        self.seller = Seller(self.exchange, "sell", "ETH/USD", 1578.15, 10.00, 3)
+
+    def test_processing_done(self):
+        self.assertFalse(self.seller.trade_ignited)
+        self.assertIsNone(self.seller.current_order)
+        self.assertDictEqual(self.exchange.orders, {})
+        self.seller.process()
+        self.assertEqual(self.seller.order_ttl, 0)
+        self.assertEqual(self.seller.min_ask, 183.57)
+        self.assertEqual(self.seller.max_bid, 182.61)
+
+        self.seller.process()
+        self.assertIsNone(self.seller.current_order)
+        self.assertFalse(self.seller.trade_ignited)
+        self.assertEqual(self.seller.max_bid, 186.61)
+
+        self.seller.process()
+        self.assertIsNone(self.seller.current_order)
+        self.assertFalse(self.seller.trade_ignited)
+        self.assertEqual(self.seller.min_ask, 183.57)
+        self.assertEqual(self.seller.max_bid, 193.0)
+
+        self.seller.process()
+        self.assertEqual(self.seller.current_order, "10000")
+        self.assertTrue(self.seller.trade_ignited)
+        self.assertEqual(self.seller.order_ttl, 0)
+        self.assertEqual(self.exchange.orders.get("10000").get("status"), "a")
+        self.assertEqual(self.exchange.orders.get("10000").get("price"), 172.69)
+        self.assertEqual(self.exchange.orders.get("10000").get("amount"), 1578.15)
+        self.assertEqual(self.exchange.orders.get("10000").get("remains"), 1578.15)
+        self.assertEqual(self.exchange.orders.get("10000").get("type"), "sell")
+
+        order_data: Dict[str, Any] = self.exchange.get_order("10000")
+        self.exchange.set_order("10000", {**order_data, **{"remains": 1000.0, "status": "a"}})
+
+        self.seller.process()
+        self.assertEqual(self.seller.current_order, "10000")
+        self.assertTrue(self.seller.trade_ignited)
+        self.assertEqual(self.exchange.orders.get("10000").get("status"), "a")
+        self.assertEqual(self.exchange.orders.get("10000").get("status"), "a")
+        self.assertEqual(self.exchange.orders.get("10000").get("price"), 172.69)
+        self.assertEqual(self.exchange.orders.get("10000").get("amount"), 1578.15)
+        self.assertEqual(self.exchange.orders.get("10000").get("remains"), 1000.0)
+        self.assertEqual(self.exchange.orders.get("10000").get("type"), "sell")
+        self.assertEqual(self.seller.order_ttl, 1)
+
+        exc: Optional[Exception] = None
+        order_data: Dict[str, Any] = self.exchange.get_order("10000")
+        self.exchange.set_order("10000", {**order_data, **{"remains": 0.0, "status": "d"}})
+        try:
+            self.seller.process()
+        except Exception as err:
+            exc = err
+        self.assertIsInstance(exc, OrderDone)
+        self.assertEqual(self.seller.order_ttl, 1)
+
+    def test_processing_expired(self):
+        self.seller.max_order_ttl = 3
+
+        self.assertFalse(self.seller.trade_ignited)
+        self.assertIsNone(self.seller.current_order)
+        self.assertDictEqual(self.exchange.orders, {})
+        self.seller.process()
+        self.assertEqual(self.seller.order_ttl, 0)
+
+        self.seller.process()
+        self.assertIsNone(self.seller.current_order)
+        self.assertFalse(self.seller.trade_ignited)
+
+        self.seller.process()
+        self.assertIsNone(self.seller.current_order)
+        self.assertFalse(self.seller.trade_ignited)
+        self.assertEqual(self.seller.order_ttl, 0)
+
+        self.seller.process()
+        self.assertEqual(self.seller.current_order, "10000")
+        self.assertTrue(self.seller.trade_ignited)
+        self.assertEqual(self.seller.order_ttl, 0)
+        self.assertEqual(self.exchange.orders.get("10000").get("status"), "a")
+        self.assertEqual(self.exchange.orders.get("10000").get("price"), 172.69)
+        self.assertEqual(self.exchange.orders.get("10000").get("amount"), 1578.15)
+        self.assertEqual(self.exchange.orders.get("10000").get("remains"), 1578.15)
+        self.assertEqual(self.exchange.orders.get("10000").get("type"), "sell")
+
+        exc: Optional[Exception] = None
+        for i in range(1, 4):
+            try:
+                subs: float = i * 200.0
+                order_data: Dict[str, Any] = self.exchange.get_order("10000")
+                self.exchange.set_order("10000", {**order_data, **{"remains": round(1578.15 - subs, 3), "status": "a"}})
+                self.seller.process()
+                self.exchange.counter += 1  # advancing ticker's counter as it will in real life
+            except Exception as err:
+                exc = err
+                break
+        self.assertIsInstance(exc, OrderExpired)
+        self.assertEqual(self.seller.order_ttl, 3)
+        self.assertEqual(self.exchange.orders.get("10000").get("amount"), 1578.15)
+        self.assertEqual(self.exchange.orders.get("10000").get("remains"), 978.15)
+        self.assertEqual(self.exchange.orders.get("10000").get("status"), "c")
+        self.assertEqual(self.seller.current_order, "10000")
+        self.assertTrue(self.seller.trade_ignited)
+
+        self.seller.process()
+        self.assertEqual(self.seller.current_order, "10001")
+        self.assertEqual(self.seller.order_ttl, 0)
+        self.assertEqual(self.exchange.orders.get("10001").get("status"), "a")
+        self.assertEqual(self.exchange.orders.get("10001").get("price"), 151.78)
+        self.assertEqual(self.exchange.orders.get("10001").get("amount"), 978.15)
+        self.assertEqual(self.exchange.orders.get("10001").get("remains"), 978.15)
+        self.assertEqual(self.exchange.orders.get("10001").get("type"), "sell")
+
+        self.seller.process()
+
+        order_data: Dict[str, Any] = self.exchange.get_order("10001")
+        self.exchange.set_order("10001", {**order_data, **{"status": "d"}})
+        try:
+            self.seller.process()
+        except Exception as err:
+            exc = err
+
+        self.assertIsInstance(exc, OrderDone)

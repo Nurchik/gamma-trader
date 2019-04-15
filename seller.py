@@ -9,6 +9,11 @@ class OrderDone(Exception):
         super().__init__("Selling done")
 
 
+class OrderExpired(Exception):
+    def __init__(self):
+        super().__init__("Order expired")
+
+
 class PartiallyExecutedOrder(Exception):
     def __init__(self, remains: float):
         self.remains = remains
@@ -59,12 +64,12 @@ class Seller:
     def process_changes(self, changes: ChangeLevels, ticker: CEXTicker) -> TradingDirective:
         if self.action == "buy":
             self.logger.debug(f"Asset's sell price changed by {changes.ask_change}%")
-            if (changes.ask_change > 1) and ((changes.ask_change - 1) > self.threshold_percent):
+            if (changes.ask_change > 1) and (round(changes.ask_change - 1, self.significant_digits) > self.threshold_percent):
                 self.logger.debug(f"Threshold of {self.threshold_percent}% reached. Start buying...")
                 return TradingDirective(self.action, self.amount, ticker.ask, self.pair)
         else:
             self.logger.debug(f"Asset's buy price changed by {changes.bid_change}%")
-            if (changes.bid_change < 1) and ((1 - changes.bid_change) > self.threshold_percent):
+            if (changes.bid_change < 1) and (round(1 - changes.bid_change, self.significant_digits) > self.threshold_percent):
                 self.logger.debug(f"Threshold of {self.threshold_percent}% reached. Start selling...")
                 return TradingDirective(self.action, self.amount, ticker.bid, self.pair)
         return TradingDirective("hold")
@@ -81,11 +86,10 @@ class Seller:
         order_status = order_info.status
         if order_status == OrderStatus.ACTIVE:
             self.order_ttl += 1
-            if self.order_ttl <= self.max_order_ttl:
+            if self.order_ttl < self.max_order_ttl:
                 return
             self.exchange.cancel_order(self.current_order)
-            cancelled_order_info = self.exchange.get_order_info(self.current_order)
-            remains = cancelled_order_info.remains
+            raise OrderExpired()
         elif order_status == OrderStatus.DONE:
             raise OrderDone()
         else:
@@ -112,16 +116,18 @@ class Seller:
                 raise exc
             except PartiallyExecutedOrder as peo:
                 self.amount = peo.remains
+            except Exception as err:
+                raise err
 
+        ticker = self.exchange.get_ticker(self.pair)
         if self.trade_ignited:
-            ticker = self.exchange.get_ticker(self.pair)
             trading_directive = self.get_straight_directive(ticker)
         else:
-            ticker = self.exchange.get_ticker(self.pair)
             changes = self.process_ticker(ticker)
             trading_directive = self.process_changes(changes, ticker)
 
         if trading_directive.action != "hold":
+            self.trade_ignited = True
             self.trade_asset(trading_directive)
 
 

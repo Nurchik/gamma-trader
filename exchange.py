@@ -69,15 +69,9 @@ class CEXExchange:
         result = requests.post(url, data=param, headers={'User-agent': 'bot-cex.io-' + self.username}).json()
         return result
 
-    def getLatestBid(self, pair: str) -> float:
-        response = self.api_call('ticker', None, pair)
-        if (response.status_code != 200):
-            raise Exception("CEX Error")
-        return response.json()["bid"]
-
-    def place_order(self, type: str, pair: str, price: float, amount: float) -> CEXPlacedOrderInfo:
+    def place_order(self, order_type: str, pair: str, price: float, amount: float) -> CEXPlacedOrderInfo:
         params = {
-            'type': type,
+            'type': order_type,
             'amount': amount,
             'price': price
         }
