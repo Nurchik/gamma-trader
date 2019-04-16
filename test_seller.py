@@ -126,7 +126,8 @@ class CEXStub3(CEXStub2):
             "amount": amount,
             "remains": amount
         })
-        return CEXPlacedOrderInfo({"id": order_id, "time": time})
+        return CEXPlacedOrderInfo({"id": order_id, "time": time, "complete": False, "amount": 1.0, "pending": 1.0,
+                                   "price": 100.0, "type": "sell"})
 
 
 class TickerProcessingTest(unittest.TestCase):

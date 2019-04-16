@@ -19,46 +19,56 @@ class OrderStatus(Enum):
 
 class CEXPlacedOrderInfo(CEXApiData):
     def __init__(self, *args):
-        self.id: str = ""
-        self.time: str = ""
+        self.order_id: str = ""
+        self.time: int = -1
+        self.complete: bool = False
+        self.pending: float = -1
+        self.amount: float = -1
+        self.order_type: str = ''
+        self.price: float = -1
         super().__init__(*args)
 
     def init(self) -> None:
-        self.id = self.json_obj["id"]
-        self.time = self.json_obj["time"]
+        self.order_id = self.json_obj["id"]
+        self.time = int(self.json_obj["time"])
+        self.complete = self.json_obj["complete"]
+        self.pending = float(self.json_obj["pending"])
+        self.amount = float(self.json_obj["amount"])
+        self.order_type = self.json_obj["type"]
+        self.price = float(self.json_obj["price"])
 
     def __str__(self):
-        return f"id = {self.id}, time = {self.time}"
+        return f"order_id = {self.order_id}, time = {self.time}, complete = {self.complete}, pending = {self.pending}, " \
+            f"amount = {self.amount}, order_type = {self.order_type}, price = {self.price}"
 
 
 class CEXOrderInfo(CEXApiData):
     def __init__(self, *args):
-        self.id: str = ""
+        self.order_id: str = ""
         self.time: str = ""
-        self.type: str = ""
+        self.order_type: str = ""
         self.user: str = ""
         self.status: Optional[OrderStatus] = None
         self.price: float = -1
         self.amount: float = -1
-        self.symbol1: str = ""
-        self.symbol2: str = ""
-        self.lastTxTime: str = ""
-        self.lastTx: str = ""
+        self.symbol_1: str = ""
+        self.symbol_2: str = ""
+        self.last_tx_time: str = ""
+        self.last_tx: str = ""
         self.remains: float = -1
-        self.orderId: str = ""
         super().__init__(*args)
 
     def init(self) -> None:
-        self.id = self.json_obj["id"]
+        self.order_id = self.json_obj["id"]
         self.time = self.json_obj["time"]
-        self.type = self.json_obj["type"]
+        self.order_type = self.json_obj["type"]
         self.user = self.json_obj["user"]
         self.price = float(self.json_obj["price"])
         self.amount = float(self.json_obj["amount"])
-        self.symbol1 = self.json_obj["symbol1"]
-        self.symbol2 = self.json_obj["symbol2"]
-        self.lastTxTime = self.json_obj["lastTxTime"]
-        self.lastTx = self.json_obj["lastTx"]
+        self.symbol_1 = self.json_obj["symbol1"]
+        self.symbol_2 = self.json_obj["symbol2"]
+        self.last_tx_time = self.json_obj["lastTxTime"]
+        self.last_tx = self.json_obj["lastTx"]
         self.remains = float(self.json_obj["remains"])
         self.status = self.parse_status()
 
@@ -74,9 +84,9 @@ class CEXOrderInfo(CEXApiData):
             raise Exception(f"Unknown order status \"{status}\". Order ID: {self.orderId}")
 
     def __str__(self):
-        return f"id = {self.id}, time = {self.time}, type = {self.type}, user = {self.user}, price = {self.price}, " \
-            f"amount = {self.amount}, symbol1 = {self.symbol1}, symbol2 = {self.symbol2}, " \
-            f"lastTxTime = {self.lastTxTime}, lastTx = {self.lastTx}, remains = {self.remains}, status = {self.status}"
+        return f"order_id = {self.order_id}, time = {self.time}, order_type = {self.order_type}, user = {self.user}, price = {self.price}, " \
+            f"amount = {self.amount}, symbol_1 = {self.symbol_1}, symbol_2 = {self.symbol_2}, " \
+            f"last_tx_time = {self.last_tx_time}, last_tx = {self.last_tx}, remains = {self.remains}, status = {self.status}"
 
 
 class CEXTicker(CEXApiData):
@@ -87,10 +97,10 @@ class CEXTicker(CEXApiData):
         self.high: float = -1
         self.last: float = -1
         self.volume: float = -1
-        self.volume30d: float = -1
+        self.volume_30_d: float = -1
         self.timestamp: int = -1
-        self.priceChange: float = -1
-        self.priceChangePercentage: float = -1
+        self.price_change: float = -1
+        self.price_change_percentage: float = -1
         self.pair: str = ""
         super().__init__(*args)
 
@@ -101,16 +111,16 @@ class CEXTicker(CEXApiData):
         self.high = float(self.json_obj["high"])
         self.last = float(self.json_obj["last"])
         self.volume = float(self.json_obj["volume"])
-        self.volume30d = float(self.json_obj["volume30d"])
+        self.volume_30_d = float(self.json_obj["volume30d"])
         self.timestamp = int(self.json_obj["timestamp"])
-        self.priceChange = float(self.json_obj["priceChange"])
-        self.priceChangePercentage = float(self.json_obj["priceChangePercentage"])
+        self.price_change = float(self.json_obj["priceChange"])
+        self.price_change_percentage = float(self.json_obj["priceChangePercentage"])
         self.pair = self.json_obj["pair"]
 
     def __str__(self):
         return f"bid = {self.bid}, ask = {self.ask}, low = {self.low}, high = {self.high}, last = {self.last}, " \
-            f"volume = {self.volume}, volume30d = {self.volume30d}, timestamp = {self.timestamp}, " \
-            f"priceChange = {self.priceChange}, priceChangePercentage = {self.priceChangePercentage}, " \
+            f"volume = {self.volume}, volume_30_d = {self.volume_30_d}, timestamp = {self.timestamp}, " \
+            f"price_change = {self.price_change}, price_change_percentage = {self.price_change_percentage}, " \
             f"pair = {self.pair}"
 
 

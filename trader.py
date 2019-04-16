@@ -114,7 +114,7 @@ class Trader:
     def trade_asset(self, trading_directive: TradingDirective) -> None:
         self.logger.debug(f"trading_directive={trading_directive}")
         self.current_order = self.exchange.place_order(trading_directive.action, trading_directive.pair,
-                                                       trading_directive.price, trading_directive.amount).id
+                                                       trading_directive.price, trading_directive.amount).order_id
         self.logger.info(f'Order of type "{trading_directive.action}" created. ID - {self.current_order}')
         self.order_ttl = 0
 

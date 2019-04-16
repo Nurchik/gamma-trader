@@ -26,9 +26,15 @@ class ServerError(Exception):
 
 
 class RemoteExecutionError(Exception):
-    def __init__(self, cause):
-        super().__init__("API call error -> " + cause)
+    def __init__(self, cause=''):
+        super().__init__(f"API call error -> {cause}")
         self.cause = cause
+
+
+class OrderNotFound(Exception):
+    def __init__(self, order_id):
+        super().__init__(f'Order {order_id} not found')
+        self.order_id: str = order_id
 
 
 class CEXExchange:
@@ -62,7 +68,12 @@ class CEXExchange:
                 'nonce': nonce
             })
 
-        result = self.__post(request_url, param)
+        if len(param.keys()) > 0:
+            method = 'post'
+        else:
+            method = 'get'
+
+        result = self.request(request_url, method, param)
         self.logger.debug(f"result = {result}")
         if result.status_code != 200:
             raise ServerError()
@@ -70,8 +81,11 @@ class CEXExchange:
         self.logger.debug(f"response = {response}")
         return response
 
-    def __post(self, url: str, param: Dict[str, Any]) -> requests.Response:
-        result = requests.post(url, data=param, headers={'User-agent': 'bot-cex.io-' + self.username}).json()
+    def request(self, url: str, method: str, param: Dict[str, Any]) -> requests.Response:
+        if method == "get":
+            result = requests.get(url, headers={'User-agent': 'bot-cex.io-' + self.username})
+        else:
+            result = requests.post(url, json=param, headers={'User-agent': 'bot-cex.io-' + self.username})
         return result
 
     def place_order(self, order_type: str, pair: str, price: float, amount: float) -> CEXPlacedOrderInfo:
@@ -99,15 +113,11 @@ class CEXExchange:
 
     def get_order_info(self, order_id: str) -> CEXOrderInfo:
         response = self.api_call(CEXOrderInfo, 'get_order', {'id': order_id})
+        if not response.data:
+            raise OrderNotFound(order_id)
         if response.error or response.ok != "ok":
             raise RemoteExecutionError(response.error)
         return cast(CEXOrderInfo, response.data)
-
-    def get_balance(self, coin: str) -> float:
-        response = self.api_call("balance")
-        if response.status_code != 200:
-            return -1
-        return response.json()[coin.upper()]
 
     def get_ticker(self, pair: str) -> CEXTicker:
         response = self.api_call(CEXTicker, "ticker", None, pair)
