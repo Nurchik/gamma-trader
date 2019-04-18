@@ -74,11 +74,11 @@ class CEXExchange:
             method = 'get'
 
         result = self.request(request_url, method, param)
-        self.logger.debug(f"result = {result}")
+        self.logger.debug(f"Response from CEX. Status code: {result.status_code}. Body: {result.content}.")
         if result.status_code != 200:
             raise ServerError()
         response = CEXApiResponse(result.json(), data_type)
-        self.logger.debug(f"response = {response}")
+        # self.logger.debug(f"response = {response}")
         return response
 
     def request(self, url: str, method: str, param: Dict[str, Any]) -> requests.Response:

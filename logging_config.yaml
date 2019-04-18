@@ -7,9 +7,9 @@ formatters:
 handlers:
   fileHandler:
     class: logging.handlers.RotatingFileHandler
-    formatter: gammaFormatter
+    formatter: fileFormatter
     level: DEBUG
-    filename: gamma.log
+    filename: gamma_bch_usd.log
     maxBytes: 10485760
     backupCount: 100
   consoleHandler:
@@ -19,7 +19,8 @@ handlers:
     stream: ext://sys.stdout
 loggers:
   root:
-    level: DEBUG
+    level: INFO
     handlers: [consoleHandler]
   gamma:
-    handlers: [fileHandler]
+    level: DEBUG
+    handlers: [fileHandler, consoleHandler]

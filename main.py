@@ -4,6 +4,7 @@ from trader import Trader, OrderDone, OrderExpired
 import time
 import logging.config
 import yaml
+import sys
 
 
 parser = argparse.ArgumentParser()
@@ -40,9 +41,9 @@ if __name__ == "__main__":
             time.sleep(args["processing_period"])
         except OrderDone:
             logger.info("Work is done!")
-            break
+            sys.exit(0)
         except OrderExpired:
             continue
         except Exception as exc:
             logger.exception("Unhandled exception!")
-            break
+            sys.exit(1)

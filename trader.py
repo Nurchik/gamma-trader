@@ -66,13 +66,15 @@ class Trader:
 
     def process_changes(self, changes: ChangeLevels, ticker: CEXTicker) -> TradingDirective:
         if self.action == "buy":
-            self.logger.debug(f"Asset's sell price changed by {changes.ask_change * 100}%")
-            if (changes.ask_change > 1) and (round(changes.ask_change - 1, self.significant_digits) > self.threshold_percent):
+            change = round(changes.ask_change - 1, self.significant_digits)
+            self.logger.debug(f"Asset's sell price changed by {change * 100}%")
+            if (change > 0) and (change > self.threshold_percent):
                 self.logger.info(f"Threshold of {self.threshold_percent * 100}% reached. Start buying...")
                 return TradingDirective(self.action, self.amount, ticker.ask, self.pair)
         else:
-            self.logger.debug(f"Asset's buy price changed by {changes.bid_change * 100}%")
-            if (changes.bid_change < 1) and (round(1 - changes.bid_change, self.significant_digits) > self.threshold_percent):
+            change = round(1 - changes.bid_change, self.significant_digits)
+            self.logger.debug(f"Asset's buy price changed by {change * 100}%")
+            if (change > 0) and (change > self.threshold_percent):
                 self.logger.info(f"Threshold of {self.threshold_percent * 100}% reached. Start selling...")
                 return TradingDirective(self.action, self.amount, ticker.bid, self.pair)
         return TradingDirective("hold")
